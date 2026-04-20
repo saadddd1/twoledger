@@ -33,6 +33,15 @@ jobs:
     - name: Generate Wrapper
       run: gradle wrapper --gradle-version 8.4 --no-daemon
 
+    - name: Debug Information
+      run: |
+        echo "Root directory contents:"
+        ls -la
+        echo "App directory contents:"
+        ls -la app/
+        echo "Root settings.gradle.kts:"
+        cat settings.gradle.kts
+
     - name: Build APK (Debug version)
       run: ./gradlew :app:assembleDebug --stacktrace --info --warning-mode all --no-build-cache --no-daemon
       
