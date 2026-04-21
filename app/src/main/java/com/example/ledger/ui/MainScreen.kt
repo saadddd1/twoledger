@@ -268,28 +268,41 @@ fun AutoRecordContent(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFE5E5EA)),
-                shape = RoundedCornerShape(12.dp)
+                    .padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = if (pendingBills.isEmpty()) 16.dp else 0.dp)
+                    .height(176.dp)
+                    .shadow(
+                        elevation = 8.dp, 
+                        shape = RoundedCornerShape(16.dp), 
+                        spotColor = Color(0x0C000000), 
+                        ambientColor = Color.Transparent
+                    ),
+                colors = CardDefaults.cardColors(containerColor = IosCardBg),
+                shape = RoundedCornerShape(16.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    modifier = Modifier.padding(20.dp).fillMaxSize(), 
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text(
                         text = "需开启通知读取权限以自动记录主流平台账单",
                         fontFamily = FontFamily.SansSerif,
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         color = IosTextSecondary,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
                     Button(
                         onClick = { 
                             val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
                             context.startActivity(intent)
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = IosBlue)
+                        colors = ButtonDefaults.buttonColors(containerColor = IosBlue.copy(alpha = 0.1f), contentColor = IosBlue),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                     ) {
-                        Text("前往系统设置激活", fontFamily = FontFamily.SansSerif)
+                        Text("前往系统设置激活", fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -323,17 +336,20 @@ fun AutoBillCard(bill: AutoBill, onDismiss: () -> Unit, onConvert: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .height(176.dp)
             .shadow(
                 elevation = 8.dp, 
                 shape = RoundedCornerShape(16.dp), 
                 spotColor = Color(0x0C000000), 
                 ambientColor = Color.Transparent
-            )
-            .animateContentSize(animationSpec = tween(400)),
+            ),
         colors = CardDefaults.cardColors(containerColor = IosCardBg),
         shape = RoundedCornerShape(16.dp)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(
+            modifier = Modifier.padding(20.dp).fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = bill.merchantName,
@@ -376,23 +392,25 @@ fun AutoBillCard(bill: AutoBill, onDismiss: () -> Unit, onConvert: () -> Unit) {
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "来源: ${bill.appSource}",
-                    fontFamily = FontFamily.SansSerif,
-                    fontSize = 14.sp,
-                    color = IosTextSecondary
-                )
-                Text(
-                    text = dateStr,
-                    fontFamily = FontFamily.SansSerif,
-                    fontSize = 14.sp,
-                    color = IosTextSecondary
-                )
+            
+            Column {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "来源: ${bill.appSource}",
+                        fontFamily = FontFamily.SansSerif,
+                        fontSize = 14.sp,
+                        color = IosTextSecondary
+                    )
+                    Text(
+                        text = dateStr,
+                        fontFamily = FontFamily.SansSerif,
+                        fontSize = 14.sp,
+                        color = IosTextSecondary
+                    )
+                }
             }
-            Spacer(modifier = Modifier.height(20.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = "¥${String.format("%.2f", bill.amount)}",
                     fontFamily = FontFamily.SansSerif,
@@ -404,7 +422,7 @@ fun AutoBillCard(bill: AutoBill, onDismiss: () -> Unit, onConvert: () -> Unit) {
                     onClick = onConvert,
                     colors = ButtonDefaults.buttonColors(containerColor = IosBlue.copy(alpha = 0.1f), contentColor = IosBlue),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
                 ) {
                     Icon(Icons.Outlined.Check, contentDescription = "导入", modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
@@ -814,17 +832,20 @@ fun ItemCard(item: Item, onDelete: () -> Unit, onEdit: () -> Unit, onSell: () ->
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .height(176.dp)
             .shadow(
                 elevation = 8.dp, 
                 shape = RoundedCornerShape(16.dp), 
                 spotColor = Color(0x0C000000), 
                 ambientColor = Color.Transparent
-            )
-            .animateContentSize(animationSpec = tween(400)),
+            ),
         colors = CardDefaults.cardColors(containerColor = IosCardBg),
         shape = RoundedCornerShape(16.dp)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(
+            modifier = Modifier.padding(20.dp).fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -868,23 +889,23 @@ fun ItemCard(item: Item, onDelete: () -> Unit, onEdit: () -> Unit, onSell: () ->
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("总价: ¥${String.format("%.2f", item.price)}", fontFamily = FontFamily.SansSerif, fontSize = 15.sp, color = IosTextPrimary.copy(alpha = alphaFactor))
-                Text("购买: $dateStr", fontFamily = FontFamily.SansSerif, fontSize = 14.sp, color = IosTextSecondary.copy(alpha = alphaFactor))
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            
+            Column {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("总价: ¥${String.format("%.2f", item.price)}", fontFamily = FontFamily.SansSerif, fontSize = 15.sp, color = IosTextPrimary.copy(alpha = alphaFactor))
+                    Text("购买: $dateStr", fontFamily = FontFamily.SansSerif, fontSize = 14.sp, color = IosTextSecondary.copy(alpha = alphaFactor))
+                }
                 if (item.isSold) {
-                    Text("卖出回血: ¥${String.format("%.2f", item.residualValue)}", fontFamily = FontFamily.SansSerif, fontSize = 15.sp, color = IosTextSecondary.copy(alpha = alphaFactor))
-                    if (soldDateStr != null) {
-                        Text("结清: $soldDateStr", fontFamily = FontFamily.SansSerif, fontSize = 14.sp, color = IosTextSecondary.copy(alpha = alphaFactor))
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("卖出回血: ¥${String.format("%.2f", item.residualValue)}", fontFamily = FontFamily.SansSerif, fontSize = 15.sp, color = IosTextSecondary.copy(alpha = alphaFactor))
+                        if (soldDateStr != null) {
+                            Text("结清: $soldDateStr", fontFamily = FontFamily.SansSerif, fontSize = 14.sp, color = IosTextSecondary.copy(alpha = alphaFactor))
+                        }
                     }
-                } else {
-                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
-            Spacer(modifier = Modifier.height(24.dp))
+
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
                 Column {
                     Text("共计使用: $daysPassed 天", fontFamily = FontFamily.SansSerif, fontSize = 14.sp, color = IosTextSecondary.copy(alpha = alphaFactor))
@@ -892,6 +913,8 @@ fun ItemCard(item: Item, onDelete: () -> Unit, onEdit: () -> Unit, onSell: () ->
                         TextButton(onClick = onSell, contentPadding = PaddingValues(0.dp), modifier = Modifier.height(30.dp)) {
                             Text("二手残值", color = IosBlue, fontFamily = FontFamily.SansSerif, fontSize = 14.sp)
                         }
+                    } else {
+                        Spacer(modifier = Modifier.height(30.dp))
                     }
                 }
                 Column(horizontalAlignment = Alignment.End) {
