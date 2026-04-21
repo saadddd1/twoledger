@@ -558,62 +558,39 @@ fun OverviewContent(items: List<Item>, allBills: List<AutoBill>, modifier: Modif
         map
     }
 
-    val minTimestamp = remember(items, allBills) {
-        val minItemTime = items.minOfOrNull { it.purchaseDateMillis } ?: nowMillis
-        val minBillTime = allBills.minOfOrNull { it.timestampMillis } ?: nowMillis
-        minOf(minItemTime, minBillTime)
-    }
-
-    val recentDays = remember(dailySums, minTimestamp) {
+    val recentDays = remember(dailySums) {
         val list = mutableListOf<Pair<String, Double>>()
-        val cal = Calendar.getInstance().apply { timeInMillis = nowMillis }
-        val minCal = Calendar.getInstance().apply { timeInMillis = minTimestamp }
+        val todayKey = dailyFormat.format(nowMillis)
+        list.add(Pair("今日新增记账", dailySums[todayKey] ?: 0.0))
 
-        cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-        minCal.set(Calendar.HOUR_OF_DAY, 0); minCal.set(Calendar.MINUTE, 0); minCal.set(Calendar.SECOND, 0); minCal.set(Calendar.MILLISECOND, 0)
-
-        list.add(Pair("今日新增记账", dailySums[dailyFormat.format(cal.time)] ?: 0.0))
-        cal.add(Calendar.DAY_OF_YEAR, -1)
-
-        while (cal.timeInMillis >= minCal.timeInMillis && list.size < 365) {
-            list.add(Pair(SimpleDateFormat("MM-dd 支出", Locale.getDefault()).format(cal.time), dailySums[dailyFormat.format(cal.time)] ?: 0.0))
-            cal.add(Calendar.DAY_OF_YEAR, -1)
+        dailySums.keys.filter { it != todayKey }.sortedDescending().forEach { key ->
+            val date = dailyFormat.parse(key)
+            val label = date?.let { SimpleDateFormat("MM月dd日", Locale.getDefault()).format(it) } ?: key
+            list.add(Pair(label, dailySums[key] ?: 0.0))
         }
         list
     }
 
-    val recentMonths = remember(monthlySums, minTimestamp) {
+    val recentMonths = remember(monthlySums) {
         val list = mutableListOf<Pair<String, Double>>()
-        val cal = Calendar.getInstance().apply { timeInMillis = nowMillis }
-        val minCal = Calendar.getInstance().apply { timeInMillis = minTimestamp }
+        val thisMonthKey = monthFormat.format(nowMillis)
+        list.add(Pair("本月累计支出", monthlySums[thisMonthKey] ?: 0.0))
 
-        cal.set(Calendar.DAY_OF_MONTH, 1); cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-        minCal.set(Calendar.DAY_OF_MONTH, 1); minCal.set(Calendar.HOUR_OF_DAY, 0); minCal.set(Calendar.MINUTE, 0); minCal.set(Calendar.SECOND, 0); minCal.set(Calendar.MILLISECOND, 0)
-
-        list.add(Pair("本月累计支出", monthlySums[monthFormat.format(cal.time)] ?: 0.0))
-        cal.add(Calendar.MONTH, -1)
-
-        while (cal.timeInMillis >= minCal.timeInMillis && list.size < 60) {
-            list.add(Pair(SimpleDateFormat("yyyy-MM 支出", Locale.getDefault()).format(cal.time), monthlySums[monthFormat.format(cal.time)] ?: 0.0))
-            cal.add(Calendar.MONTH, -1)
+        monthlySums.keys.filter { it != thisMonthKey }.sortedDescending().forEach { key ->
+            val date = monthFormat.parse(key)
+            val label = date?.let { SimpleDateFormat("yyyy年 MM月", Locale.getDefault()).format(it) } ?: key
+            list.add(Pair(label, monthlySums[key] ?: 0.0))
         }
         list
     }
 
-    val recentYears = remember(yearlySums, minTimestamp) {
+    val recentYears = remember(yearlySums) {
         val list = mutableListOf<Pair<String, Double>>()
-        val cal = Calendar.getInstance().apply { timeInMillis = nowMillis }
-        val minCal = Calendar.getInstance().apply { timeInMillis = minTimestamp }
+        val thisYearKey = yearFormat.format(nowMillis)
+        list.add(Pair("本年度总花销", yearlySums[thisYearKey] ?: 0.0))
 
-        cal.set(Calendar.DAY_OF_YEAR, 1); cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-        minCal.set(Calendar.DAY_OF_YEAR, 1); minCal.set(Calendar.HOUR_OF_DAY, 0); minCal.set(Calendar.MINUTE, 0); minCal.set(Calendar.SECOND, 0); minCal.set(Calendar.MILLISECOND, 0)
-
-        list.add(Pair("本年度总花销", yearlySums[yearFormat.format(cal.time)] ?: 0.0))
-        cal.add(Calendar.YEAR, -1)
-
-        while (cal.timeInMillis >= minCal.timeInMillis && list.size < 10) {
-            list.add(Pair("${yearFormat.format(cal.time)}年 总花销", yearlySums[yearFormat.format(cal.time)] ?: 0.0))
-            cal.add(Calendar.YEAR, -1)
+        yearlySums.keys.filter { it != thisYearKey }.sortedDescending().forEach { key ->
+            list.add(Pair("${key}年", yearlySums[key] ?: 0.0))
         }
         list
     }
@@ -732,8 +709,8 @@ fun ExpandableOverviewRow(
                     .background(Color(0xFFF2F2F7), RoundedCornerShape(12.dp))
                     .heightIn(max = 240.dp)
                     .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 val pastData = historyData.drop(1)
                 if (pastData.isEmpty()) {
@@ -741,17 +718,23 @@ fun ExpandableOverviewRow(
                         text = "暂无更早记录", 
                         color = IosTextSecondary, 
                         fontSize = 13.sp, 
-                        modifier = Modifier.fillMaxWidth(), 
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), 
                         textAlign = TextAlign.Center
                     )
                 } else {
-                    pastData.forEach { (label, value) ->
+                    pastData.forEachIndexed { index, (label, value) ->
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(label, color = IosTextSecondary, fontSize = 13.sp)
-                            Text("¥${String.format("%.2f", value)}", color = IosTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text(label, color = IosTextSecondary, fontSize = 14.sp)
+                            Text("¥${String.format("%.2f", value)}", color = IosTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        }
+                        if (index < pastData.size - 1) {
+                            Divider(color = Color(0x1A000000), thickness = 0.5.dp)
                         }
                     }
                 }
