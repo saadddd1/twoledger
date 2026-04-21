@@ -256,12 +256,12 @@ fun AutoRecordContent(
         }
     }
 
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = modifier.fillMaxSize()) {
         if (!isEnabled) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp),
+                    .padding(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFE5E5EA)),
                 shape = RoundedCornerShape(12.dp)
             ) {
@@ -293,7 +293,11 @@ fun AutoRecordContent(
                 Text("暂无捕获到的新账单", color = IosTextSecondary, fontFamily = FontFamily.SansSerif)
             }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
                 items(pendingBills, key = { it.id }) { bill ->
                     Box(modifier = Modifier.animateItemPlacement(tween(250))) {
                         AutoBillCard(bill, onDismiss = { onDismiss(bill) }, onConvert = { onConvert(bill) })
@@ -547,33 +551,41 @@ fun OverviewContent(items: List<Item>, allBills: List<AutoBill>, modifier: Modif
         map
     }
 
-    // 步进器状态
-    var dayOffset by remember { mutableStateOf(0) }
-    var monthOffset by remember { mutableStateOf(0) }
-    var yearOffset by remember { mutableStateOf(0) }
+    val recentDays = remember(dailySums) {
+        val list = mutableListOf<Pair<String, Double>>()
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = nowMillis
+        list.add(Pair("今日新增记账", dailySums[dailyFormat.format(cal.time)] ?: 0.0))
+        for (i in 1..4) {
+            cal.add(Calendar.DAY_OF_YEAR, -1)
+            list.add(Pair(SimpleDateFormat("MM-dd 支出", Locale.getDefault()).format(cal.time), dailySums[dailyFormat.format(cal.time)] ?: 0.0))
+        }
+        list
+    }
 
-    val cal = Calendar.getInstance()
+    val recentMonths = remember(monthlySums) {
+        val list = mutableListOf<Pair<String, Double>>()
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = nowMillis
+        list.add(Pair("本月累计支出", monthlySums[monthFormat.format(cal.time)] ?: 0.0))
+        for (i in 1..4) {
+            cal.add(Calendar.MONTH, -1)
+            list.add(Pair(SimpleDateFormat("yyyy-MM 支出", Locale.getDefault()).format(cal.time), monthlySums[monthFormat.format(cal.time)] ?: 0.0))
+        }
+        list
+    }
 
-    // 日计算
-    cal.timeInMillis = nowMillis
-    cal.add(Calendar.DAY_OF_YEAR, dayOffset)
-    val currentDayKey = dailyFormat.format(cal.time)
-    val currentDaySum = dailySums[currentDayKey] ?: 0.0
-    val dayLabel = if (dayOffset == 0) "今日新增记账" else SimpleDateFormat("MM-dd 支出", Locale.getDefault()).format(cal.time)
-
-    // 月计算
-    cal.timeInMillis = nowMillis
-    cal.add(Calendar.MONTH, monthOffset)
-    val currentMonthKey = monthFormat.format(cal.time)
-    val currentMonthSum = monthlySums[currentMonthKey] ?: 0.0
-    val monthLabel = if (monthOffset == 0) "本月累计支出" else SimpleDateFormat("yyyy-MM 支出", Locale.getDefault()).format(cal.time)
-
-    // 年计算
-    cal.timeInMillis = nowMillis
-    cal.add(Calendar.YEAR, yearOffset)
-    val currentYearKey = yearFormat.format(cal.time)
-    val currentYearSum = yearlySums[currentYearKey] ?: 0.0
-    val yearLabel = if (yearOffset == 0) "本年度总花销" else "${currentYearKey}年 总花销"
+    val recentYears = remember(yearlySums) {
+        val list = mutableListOf<Pair<String, Double>>()
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = nowMillis
+        list.add(Pair("本年度总花销", yearlySums[yearFormat.format(cal.time)] ?: 0.0))
+        for (i in 1..4) {
+            cal.add(Calendar.YEAR, -1)
+            list.add(Pair("${yearFormat.format(cal.time)}年 总花销", yearlySums[yearFormat.format(cal.time)] ?: 0.0))
+        }
+        list
+    }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -606,36 +618,27 @@ fun OverviewContent(items: List<Item>, allBills: List<AutoBill>, modifier: Modif
 
         item {
             StandardOverviewCard("日常流水大盘") {
-                SteppableOverviewRow(
-                    label = dayLabel, 
-                    value = "¥${String.format("%.2f", currentDaySum)}", 
+                ExpandableOverviewRow(
+                    historyData = recentDays,
                     valueColor = IosTextPrimary, 
-                    fontSize = 18.sp,
-                    onPrevious = { dayOffset-- },
-                    onNext = if (dayOffset < 0) { { dayOffset++ } } else null
+                    fontSize = 18.sp
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Divider(color = IosDivider, thickness = 0.5.dp)
                 Spacer(modifier = Modifier.height(16.dp))
-                SteppableOverviewRow(
-                    label = monthLabel, 
-                    value = "¥${String.format("%.2f", currentMonthSum)}", 
+                ExpandableOverviewRow(
+                    historyData = recentMonths,
                     valueColor = IosRed, 
                     fontSize = 26.sp, 
-                    isBold = true,
-                    onPrevious = { monthOffset-- },
-                    onNext = if (monthOffset < 0) { { monthOffset++ } } else null
+                    isBold = true
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Divider(color = IosDivider, thickness = 0.5.dp)
                 Spacer(modifier = Modifier.height(16.dp))
-                SteppableOverviewRow(
-                    label = yearLabel, 
-                    value = "¥${String.format("%.2f", currentYearSum)}", 
+                ExpandableOverviewRow(
+                    historyData = recentYears,
                     valueColor = IosTextPrimary, 
-                    fontSize = 18.sp,
-                    onPrevious = { yearOffset-- },
-                    onNext = if (yearOffset < 0) { { yearOffset++ } } else null
+                    fontSize = 18.sp
                 )
             }
             Spacer(modifier = Modifier.height(24.dp)) // 底部留白
@@ -644,48 +647,72 @@ fun OverviewContent(items: List<Item>, allBills: List<AutoBill>, modifier: Modif
 }
 
 @Composable
-fun SteppableOverviewRow(
-    label: String, 
-    value: String, 
+fun ExpandableOverviewRow(
+    historyData: List<Pair<String, Double>>, 
     valueColor: Color, 
     fontSize: androidx.compose.ui.unit.TextUnit, 
-    isBold: Boolean = false,
-    onPrevious: () -> Unit,
-    onNext: (() -> Unit)? = null
+    isBold: Boolean = false
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(), 
-        horizontalArrangement = Arrangement.SpaceBetween, 
-        verticalAlignment = Alignment.CenterVertically
+    if (historyData.isEmpty()) return
+    val currentData = historyData.first()
+    var isExpanded by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { isExpanded = !isExpanded }
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onPrevious, modifier = Modifier.size(28.dp)) {
-                Text("◀", fontSize = 14.sp, color = IosTextSecondary)
+        Row(
+            modifier = Modifier.fillMaxWidth(), 
+            horizontalArrangement = Arrangement.SpaceBetween, 
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = currentData.first, 
+                    fontFamily = FontFamily.SansSerif, 
+                    fontSize = 15.sp, 
+                    color = IosTextPrimary
+                )
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = "Expand",
+                    tint = IosTextSecondary,
+                    modifier = Modifier.padding(start = 4.dp).size(16.dp)
+                )
             }
             Text(
-                text = label, 
+                text = "¥${String.format("%.2f", currentData.second)}", 
                 fontFamily = FontFamily.SansSerif, 
-                fontSize = 15.sp, 
-                color = IosTextPrimary,
-                modifier = Modifier.padding(horizontal = 4.dp)
+                fontWeight = if (isBold) FontWeight.Black else FontWeight.SemiBold, 
+                fontSize = fontSize, 
+                color = valueColor
             )
-            IconButton(
-                onClick = { onNext?.invoke() }, 
-                modifier = Modifier.size(28.dp),
-                enabled = onNext != null
+        }
+
+        AnimatedVisibility(visible = isExpanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp)
+                    .background(Color(0xFFF2F2F7), RoundedCornerShape(12.dp))
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (onNext != null) {
-                    Text("▶", fontSize = 14.sp, color = IosTextSecondary)
+                historyData.drop(1).forEach { (label, value) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(label, color = IosTextSecondary, fontSize = 13.sp)
+                        Text("¥${String.format("%.2f", value)}", color = IosTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    }
                 }
             }
         }
-        Text(
-            text = value, 
-            fontFamily = FontFamily.SansSerif, 
-            fontWeight = if (isBold) FontWeight.Black else FontWeight.SemiBold, 
-            fontSize = fontSize, 
-            color = valueColor
-        )
     }
 }
 
