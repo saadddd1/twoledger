@@ -12,6 +12,7 @@ import com.example.ledger.data.AppDatabase
 import com.example.ledger.data.AutoBill
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 class NotificationMonitorService : NotificationListenerService() {
@@ -182,6 +183,10 @@ class NotificationMonitorService : NotificationListenerService() {
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
         stopForeground(STOP_FOREGROUND_REMOVE)
+    }
+
+    override fun destroy() {
+        super.destroy()
         scope.cancel()
     }
 
