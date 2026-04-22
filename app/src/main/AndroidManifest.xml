@@ -35,7 +35,7 @@
             android:label="账本通知记账服务"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
             android:exported="true"
-            android:foregroundServiceType="specialUse">
+            android:foregroundServiceType="dataSync">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>

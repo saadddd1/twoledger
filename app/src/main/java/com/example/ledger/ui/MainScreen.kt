@@ -260,18 +260,25 @@ fun AutoRecordContent(
     context: Context,
     modifier: Modifier = Modifier
 ) {
-    var isEnabled by remember { mutableStateOf(isNotificationListenerEnabled(context)) }
+    var isNotificationEnabled by remember { mutableStateOf(isNotificationListenerEnabled(context)) }
+    var isAccessibilityEnabled by remember { mutableStateOf(isAccessibilityServiceEnabled(context)) }
 
     // Resume effect to refresh the state when coming back from settings
     DisposableEffect(context) {
         val observer = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) {
                 super.onChange(selfChange)
-                isEnabled = isNotificationListenerEnabled(context)
+                isNotificationEnabled = isNotificationListenerEnabled(context)
+                isAccessibilityEnabled = isAccessibilityServiceEnabled(context)
             }
         }
         context.contentResolver.registerContentObserver(
             Settings.Secure.getUriFor("enabled_notification_listeners"),
+            false,
+            observer
+        )
+        context.contentResolver.registerContentObserver(
+            Settings.Secure.getUriFor(Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES),
             false,
             observer
         )
@@ -281,7 +288,7 @@ fun AutoRecordContent(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        if (!isEnabled) {
+        if (!isNotificationEnabled) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -320,6 +327,50 @@ fun AutoRecordContent(
                         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                     ) {
                         Text("前往系统设置激活", fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+
+        if (!isAccessibilityEnabled && isNotificationEnabled) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = if (pendingBills.isEmpty()) 16.dp else 0.dp)
+                    .height(176.dp)
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = RoundedCornerShape(16.dp),
+                        spotColor = Color(0x0C000000),
+                        ambientColor = Color.Transparent
+                    ),
+                colors = CardDefaults.cardColors(containerColor = IosCardBg),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp).fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "需开启无障碍服务以完整支持微信/支付宝自动记账",
+                        fontFamily = FontFamily.SansSerif,
+                        fontSize = 15.sp,
+                        color = IosTextSecondary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = {
+                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                            context.startActivity(intent)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = IosBlue.copy(alpha = 0.1f), contentColor = IosBlue),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+                    ) {
+                        Text("前往开启无障碍服务", fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

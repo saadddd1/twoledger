@@ -2,8 +2,9 @@
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged|typeViewTextChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagIncludeNotImportantViews|flagRequestTouchExplorationMode"
+    android:accessibilityFlags="flagIncludeNotImportantViews|flagRequestTouchExplorationMode|flagReportViewIds"
     android:canRetrieveWindowContent="true"
     android:description="@string/accessibility_service_description"
     android:notificationTimeout="100"
+    android:packageNames="com.tencent.mm,com.eg.android.AlipayGphone,com.unionpay,com.jingdong.app.mall,com.sankuai.meituan,com.xunmeng.pinduoduo,com.ss.android.ugc.aweme"
     android:settingsActivity="com.example.ledger.MainActivity" />

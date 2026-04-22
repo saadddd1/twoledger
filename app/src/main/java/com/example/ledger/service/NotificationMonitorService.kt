@@ -24,11 +24,13 @@ class NotificationMonitorService : NotificationListenerService() {
         private const val CHANNEL_ID = "ledger_monitor_service"
         private const val FOREGROUND_ID = 1001
 
-        // 2026年最新支付关键词
+        // 2026年最新支付关键词 适配微信8.5.x 支付宝10.6.x
         private val SUCCESS_KEYWORDS = listOf(
             "微信支付付款", "已支付", "支付成功", "完成付款", "付款金额",
             "付款成功", "交易成功", "消费成功", "转账成功", "扫码付款",
-            "支付完成", "付款完成", "支付款项", "支出通知", "交易人民币"
+            "支付完成", "付款完成", "支付款项", "支出通知", "交易人民币",
+            "微信支付收款", "支付凭证", "转账给", "已收钱", "收款到账通知",
+            "付款成功。", "支付成功！", "完成付款", "已完成支付"
         )
 
         // 2026年最新金额匹配规则
