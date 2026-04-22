@@ -332,7 +332,7 @@ fun AutoRecordContent(
             }
         }
 
-        if (!isAccessibilityEnabled && isNotificationEnabled) {
+        if (!isAccessibilityEnabled) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -353,11 +353,12 @@ fun AutoRecordContent(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "需开启无障碍服务以完整支持微信/支付宝自动记账",
+                        text = "⚠️ 微信8.5以上版本必须开启此权限\n无障碍服务是目前唯一可以自动捕获微信支付宝账单的方式",
                         fontFamily = FontFamily.SansSerif,
                         fontSize = 15.sp,
                         color = IosTextSecondary,
                         textAlign = TextAlign.Center,
+                        lineHeight = 22.sp,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(24.dp))

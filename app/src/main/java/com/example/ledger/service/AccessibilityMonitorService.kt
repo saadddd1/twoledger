@@ -1,21 +1,31 @@
 package com.example.ledger.service
 
 import android.accessibilityservice.AccessibilityService
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.util.Log
+import com.example.ledger.R
 import com.example.ledger.data.AppDatabase
 import com.example.ledger.data.AutoBill
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.util.regex.Pattern
 
 class AccessibilityMonitorService : AccessibilityService() {
-    private val scope = CoroutineScope(Dispatchers.IO)
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private lateinit var db: AppDatabase
 
     companion object {
+        private const val CHANNEL_ID = "ledger_accessibility_service"
+        private const val FOREGROUND_ID = 1002
+
         private val TARGET_PACKAGES = setOf(
             "com.tencent.mm",
             "com.eg.android.AlipayGphone",
@@ -25,20 +35,66 @@ class AccessibilityMonitorService : AccessibilityService() {
             "com.taobao.taobao"
         )
 
-        // 2026 年最新支付成功页面关键词
+        // 2026年微信8.5.x/支付宝10.6.x 最新匹配规则
         private val PAY_SUCCESS_KEYWORDS = listOf(
             "支付成功", "付款成功", "完成支付", "交易成功",
             "已付款", "支付完成", "付款完成", "转账成功",
-            "付款成功。", "支付成功！", "完成付款"
+            "付款成功。", "支付成功！", "完成付款", "支付成功 ",
+            "微信支付", "已支付", "支付凭证", "转账给你",
+            "收钱到账", "收款到账", "付款给", "向你付款"
         )
 
-        private val AMOUNT_PATTERN = Pattern.compile("""[¥￥]?\s*(\d+(?:\.\d{1,2})?)""")
+        // 2026最新金额规则 - 适配微信支付宝最新UI格式
+        private val AMOUNT_PATTERN = Pattern.compile("""[¥￥]\s*(\d+(?:\.\d{1,2})?)""")
+        private val MERCHANT_PATTERNS = listOf(
+            Regex("""收款方[:：]?\s*(.+?)(?:\s|$)"""),
+            Regex("""付款给[:：]?\s*(.+?)(?:\s|$)"""),
+            Regex("""收款方：\s*([^\n]+)"""),
+            Regex("""在(.+?)消费"""),
+            Regex("""商户全称[:：]?\s*(.+?)(?:\s|$)""")
+        )
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         db = AppDatabase.getDatabase(applicationContext)
+        startForegroundService()
         Log.d("AccessibilityMonitor", "无障碍服务已连接")
+    }
+
+    private fun startForegroundService() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "无障碍记账服务",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "无障碍自动记账后台服务"
+                enableVibration(false)
+                setSound(null, null)
+            }
+
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
+
+        val notification = Notification.Builder(this, CHANNEL_ID)
+            .setContentTitle("账本无障碍服务")
+            .setContentText("正在后台监控支付页面")
+            .setSmallIcon(android.R.drawable.ic_menu_info_details)
+            .setOngoing(true)
+            .build()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(FOREGROUND_ID, notification, FOREGROUND_SERVICE_SPECIAL_USE)
+        } else {
+            startForeground(FOREGROUND_ID, notification)
+        }
+    }
+
+    override fun onInterrupt() {
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        scope.cancel()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -130,16 +186,18 @@ class AccessibilityMonitorService : AccessibilityService() {
     }
 
     private fun extractMerchantName(content: String, packageName: String): String {
+        for (pattern in MERCHANT_PATTERNS) {
+            val match = pattern.find(content)
+            if (match != null) {
+                val name = match.groupValues[1].trim()
+                if (name.isNotBlank() && name.length < 50) {
+                    return name
+                }
+            }
+        }
         return when (packageName) {
-            "com.tencent.mm" -> {
-                val match = Regex("""收款方[:：]?\s*(.*?)(?:\s|$)""").find(content)
-                match?.groupValues?.get(1)?.trim() ?: "微信支付"
-            }
-            "com.eg.android.AlipayGphone" -> {
-                val match = Regex("""收款方[:：]?\s*(.*?)(?:\s|$)""").find(content)
-                    ?: Regex("""在(.*?)支付成功""").find(content)
-                match?.groupValues?.get(1)?.trim() ?: "支付宝支付"
-            }
+            "com.tencent.mm" -> "微信支付"
+            "com.eg.android.AlipayGphone" -> "支付宝支付"
             else -> "未命名账单"
         }
     }

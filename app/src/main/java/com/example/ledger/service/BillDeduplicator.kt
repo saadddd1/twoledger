@@ -17,16 +17,15 @@ object BillDeduplicator {
     fun shouldRecordBill(amount: Double, appSource: String, timestamp: Long): Boolean {
         cleanupExpired()
 
-        val fingerprint = BillFingerprint(amount, appSource, 0)
-
-        // 检查 30 秒内是否有相同金额 + 相同来源的账单
+        // 跨引擎去重：只要是同一个应用+相同金额，30秒内只记录一次
+        // 不管是通知引擎还是无障碍引擎捕获的
         val existing = recentBills.keys.find {
             it.amount == amount && it.appSource == appSource &&
                     Math.abs(timestamp - recentBills[it]!!) < DEDUPLICATION_WINDOW_MS
         }
 
         return if (existing != null) {
-            // 重复账单，跳过
+            // 重复账单，跳过（双引擎互斥）
             false
         } else {
             recentBills[BillFingerprint(amount, appSource, timestamp)] = timestamp
