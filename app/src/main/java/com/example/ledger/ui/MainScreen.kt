@@ -946,13 +946,13 @@ fun AddItemDialog(onDismiss: () -> Unit, onAdd: (String, Double, Long, Double) -
             Column {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("物品名称", fontFamily = FontFamily.SansSerif) }, singleLine = true, isError = isError && name.isBlank(), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp))
                 OutlinedTextField(value = priceStr, onValueChange = { priceStr = it }, label = { Text("入手总价 (￥)", fontFamily = FontFamily.SansSerif) }, singleLine = true, isError = isError && (priceStr.toDoubleOrNull() ?: 0.0) <= 0, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp))
-                OutlinedTextField(value = dateStr, onValueChange = { dateStr = it }, label = { Text("购买日期 (YYYY-MM-DD)", fontFamily = FontFamily.SansSerif) }, singleLine = true, isError = isError && runCatching { dateFormat.parse(dateStr) }.isFailure, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = dateStr, onValueChange = { dateStr = it }, label = { Text("购买日期 (YYYY-MM-DD)", fontFamily = FontFamily.SansSerif) }, singleLine = true, isError = isError && runCatching { dateFormatYMD.parse(dateStr) }.isFailure, modifier = Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
             TextButton(onClick = {
                 val price = priceStr.toDoubleOrNull() ?: 0.0
-                val dateMillis = try { dateFormat.parse(dateStr)?.time ?: 0L } catch (e: Exception) { 0L }
+                val dateMillis = try { dateFormatYMD.parse(dateStr)?.time ?: 0L } catch (e: Exception) { 0L }
                 if (name.isNotBlank() && price > 0 && dateMillis > 0) onAdd(name, price, dateMillis, 0.0) else isError = true
             }) { Text("保存", color = IosBlue, fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.SansSerif) }
         },
@@ -976,13 +976,13 @@ fun EditItemDialog(item: Item, onDismiss: () -> Unit, onEdit: (String, Double, L
             Column {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("物品名称", fontFamily = FontFamily.SansSerif) }, singleLine = true, isError = isError && name.isBlank(), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp))
                 OutlinedTextField(value = priceStr, onValueChange = { priceStr = it }, label = { Text("入手总价 (￥)", fontFamily = FontFamily.SansSerif) }, singleLine = true, isError = isError && (priceStr.toDoubleOrNull() ?: 0.0) <= 0, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp))
-                OutlinedTextField(value = dateStr, onValueChange = { dateStr = it }, label = { Text("购买日期 (YYYY-MM-DD)", fontFamily = FontFamily.SansSerif) }, singleLine = true, isError = isError && runCatching { dateFormat.parse(dateStr) }.isFailure, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = dateStr, onValueChange = { dateStr = it }, label = { Text("购买日期 (YYYY-MM-DD)", fontFamily = FontFamily.SansSerif) }, singleLine = true, isError = isError && runCatching { dateFormatYMD.parse(dateStr) }.isFailure, modifier = Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
             TextButton(onClick = {
                 val price = priceStr.toDoubleOrNull() ?: 0.0
-                val dateMillis = try { dateFormat.parse(dateStr)?.time ?: 0L } catch (e: Exception) { 0L }
+                val dateMillis = try { dateFormatYMD.parse(dateStr)?.time ?: 0L } catch (e: Exception) { 0L }
                 if (name.isNotBlank() && price > 0 && dateMillis > 0) onEdit(name, price, dateMillis) else isError = true
             }) { Text("保存更改", color = IosBlue, fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.SansSerif) }
         },
@@ -1005,13 +1005,13 @@ fun SellItemDialog(item: Item, onDismiss: () -> Unit, onSell: (Double, Long) -> 
             Column {
                 Text("核算【${item.name}】的真实最终净成本。", fontFamily = FontFamily.SansSerif, fontSize = 13.sp, color = IosTextSecondary, modifier = Modifier.padding(bottom = 12.dp), textAlign = TextAlign.Center)
                 OutlinedTextField(value = priceStr, onValueChange = { priceStr = it }, label = { Text("回血/卖出金额 (￥)", fontFamily = FontFamily.SansSerif) }, singleLine = true, isError = isError && priceStr.isBlank(), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp))
-                OutlinedTextField(value = dateStr, onValueChange = { dateStr = it }, label = { Text("结清日期 (YYYY-MM-DD)", fontFamily = FontFamily.SansSerif) }, singleLine = true, isError = isError && runCatching { dateFormat.parse(dateStr) }.isFailure, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = dateStr, onValueChange = { dateStr = it }, label = { Text("结清日期 (YYYY-MM-DD)", fontFamily = FontFamily.SansSerif) }, singleLine = true, isError = isError && runCatching { dateFormatYMD.parse(dateStr) }.isFailure, modifier = Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
             TextButton(onClick = {
                 val price = priceStr.toDoubleOrNull() ?: 0.0
-                val dateMillis = try { dateFormat.parse(dateStr)?.time ?: 0L } catch (e: Exception) { 0L }
+                val dateMillis = try { dateFormatYMD.parse(dateStr)?.time ?: 0L } catch (e: Exception) { 0L }
                 if (dateMillis > 0) onSell(price, dateMillis) else isError = true
             }) { Text("确认核算", color = IosBlue, fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.SansSerif) }
         },

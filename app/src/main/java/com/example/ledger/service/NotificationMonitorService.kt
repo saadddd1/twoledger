@@ -65,7 +65,7 @@ class NotificationMonitorService : NotificationListenerService() {
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("账本自动记账")
             .setContentText("正在后台监听支付通知")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(android.R.drawable.ic_menu_info_details)
             .setOngoing(true)
             .build()
 
@@ -183,10 +183,6 @@ class NotificationMonitorService : NotificationListenerService() {
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
         stopForeground(STOP_FOREGROUND_REMOVE)
-    }
-
-    override fun destroy() {
-        super.destroy()
         scope.cancel()
     }
 
