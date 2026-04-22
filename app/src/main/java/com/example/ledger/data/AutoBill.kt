@@ -3,7 +3,16 @@ package com.example.ledger.data
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "auto_bills")
+import androidx.room.Index
+
+@Entity(
+    tableName = "auto_bills",
+    indices = [
+        Index(value = ["timestampMillis"]),
+        Index(value = ["isProcessed"]),
+        Index(value = ["isProcessed", "timestampMillis"])
+    ]
+)
 data class AutoBill(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val appSource: String, // "WeChat" 或 "Alipay"

@@ -15,7 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class NotificationMonitorService : NotificationListenerService() {
-    private val scope = CoroutineScope(Dispatchers.IO)
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private lateinit var db: AppDatabase
 
     companion object {
@@ -182,6 +182,7 @@ class NotificationMonitorService : NotificationListenerService() {
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
         stopForeground(STOP_FOREGROUND_REMOVE)
+        scope.cancel()
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {}

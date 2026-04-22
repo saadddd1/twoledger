@@ -6,12 +6,18 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import java.io.Closeable
+import java.io.IOException
 
 @Database(entities = [Item::class, AutoBill::class], version = 5, exportSchema = false)
-abstract class AppDatabase : RoomDatabase() {
+abstract class AppDatabase : RoomDatabase(), Closeable {
     abstract fun itemDao(): ItemDao
     abstract fun autoBillDao(): AutoBillDao
+
+    private val databaseScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     companion object {
         @Volatile
@@ -25,11 +31,13 @@ abstract class AppDatabase : RoomDatabase() {
                     "ledger_database"
                 )
                 .fallbackToDestructiveMigration()
+                .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING)
+                .enableMultiInstanceInvalidation()
                 .build()
                 INSTANCE = instance
 
                 // 首次创建时自动注入极其丰富逼真的测试数据
-                CoroutineScope(Dispatchers.IO).launch {
+                instance.databaseScope.launch {
                     if (instance.itemDao().getCount() == 0) {
                         val now = System.currentTimeMillis()
                         val dayMs = 24L * 60 * 60 * 1000L
@@ -65,5 +73,11 @@ abstract class AppDatabase : RoomDatabase() {
                 return instance
             }
         }
+    }
+
+    @Throws(IOException::class)
+    override fun close() {
+        super.close()
+        databaseScope.cancel()
     }
 }

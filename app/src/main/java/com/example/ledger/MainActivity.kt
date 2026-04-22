@@ -4,6 +4,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -20,9 +21,14 @@ import com.example.ledger.data.AppDatabase
 import com.example.ledger.ui.IosBg
 import com.example.ledger.ui.IosTextPrimary
 import com.example.ledger.ui.IosTextSecondary
+import com.example.ledger.viewmodel.ItemViewModelFactory
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
+    private val viewModelFactory by lazy {
+        ItemViewModelFactory(AppDatabase.getDatabase(this))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -40,8 +46,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-
-        val database = AppDatabase.getDatabase(this)
         
         setContent {
             var showSplash by remember { mutableStateOf(true) }
@@ -59,11 +63,16 @@ class MainActivity : ComponentActivity() {
                     if (showSplash) {
                         SplashScreen()
                     } else {
-                        MainScreen(database = database)
+                        MainScreen(viewModelFactory = viewModelFactory)
                     }
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        AppDatabase.getDatabase(this).close()
     }
 }
 

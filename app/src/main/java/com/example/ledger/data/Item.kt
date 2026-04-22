@@ -3,7 +3,16 @@ package com.example.ledger.data
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "items")
+import androidx.room.Index
+
+@Entity(
+    tableName = "items",
+    indices = [
+        Index(value = ["purchaseDateMillis"]),
+        Index(value = ["isSold"]),
+        Index(value = ["isSold", "purchaseDateMillis"])
+    ]
+)
 data class Item(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,

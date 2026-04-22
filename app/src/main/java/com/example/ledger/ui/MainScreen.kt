@@ -58,6 +58,15 @@ import java.util.Calendar
 import java.util.concurrent.TimeUnit
 import kotlin.math.max
 
+// 全局缓存日期格式化器，避免每次重组创建
+private val dateFormatYMD = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+private val dateFormatMDHM = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+private val dailyFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+private val monthFormat = SimpleDateFormat("yyyy-MM", Locale.getDefault())
+private val yearFormat = SimpleDateFormat("yyyy", Locale.getDefault())
+private val monthLabelFormat = SimpleDateFormat("yyyy年 MM月", Locale.getDefault())
+private val dayLabelFormat = SimpleDateFormat("MM月dd日", Locale.getDefault())
+
 val IosBlue = Color(0xFF007AFF)
 val IosRed = Color(0xFFFF3B30)
 val IosScreenBg = Color(0xFFF2F2F7)
@@ -86,8 +95,8 @@ fun isAccessibilityServiceEnabled(context: Context): Boolean {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun MainScreen(database: AppDatabase) {
-    val viewModel: ItemViewModel = viewModel(factory = ItemViewModelFactory(database))
+fun MainScreen(viewModelFactory: ItemViewModelFactory) {
+    val viewModel: ItemViewModel = viewModel(factory = viewModelFactory)
     val items by viewModel.items.collectAsState()
     val pendingBills by viewModel.pendingBills.collectAsState()
     val allBills by viewModel.allBills.collectAsState()
@@ -338,8 +347,7 @@ fun AutoRecordContent(
 
 @Composable
 fun AutoBillCard(bill: AutoBill, onDismiss: () -> Unit, onConvert: () -> Unit) {
-    val dateFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
-    val dateStr = dateFormat.format(Date(bill.timestampMillis))
+    val dateStr = dateFormatMDHM.format(Date(bill.timestampMillis))
     
     Card(
         modifier = Modifier
@@ -534,92 +542,75 @@ fun ItemListContent(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OverviewContent(items: List<Item>, allBills: List<AutoBill>, modifier: Modifier = Modifier) {
-    val totalSpent = items.sumOf { it.price }
-    val totalRecovered = items.filter { it.isSold }.sumOf { it.residualValue }
-    val netSpend = max(totalSpent - totalRecovered, 0.0)
-    
-    val activeItems = items.count { !it.isSold }
-    val soldItems = items.count { it.isSold }
+    val nowMillis = remember { System.currentTimeMillis() }
 
-    val nowMillis = System.currentTimeMillis()
-    var totalDailyCost = 0.0
-    items.forEach { item ->
-        val endDate = if (item.isSold) item.soldDateMillis ?: nowMillis else nowMillis
-        val diffMillis = max(endDate - item.purchaseDateMillis, 0)
-        var daysPassed = TimeUnit.MILLISECONDS.toDays(diffMillis)
-        if (daysPassed < 1L) daysPassed = 1L
-        val netCost = if (item.isSold) max(item.price - item.residualValue, 0.0) else item.price
-        totalDailyCost += (netCost / daysPassed)
-    }
+    // 一次性计算所有统计数据并缓存
+    val statistics = remember(items, allBills, nowMillis) {
+        val totalSpent = items.sumOf { it.price }
+        val totalRecovered = items.filter { it.isSold }.sumOf { it.residualValue }
+        val netSpend = max(totalSpent - totalRecovered, 0.0)
+        
+        val activeItems = items.count { !it.isSold }
+        val soldItems = items.count { it.isSold }
 
-    // 账单统计：恢复高性能的按区间总和映射表
-    val dailyFormat = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
-    val monthFormat = remember { SimpleDateFormat("yyyy-MM", Locale.getDefault()) }
-    val yearFormat = remember { SimpleDateFormat("yyyy", Locale.getDefault()) }
-
-    val dailySums = remember(allBills) {
-        val map = mutableMapOf<String, Double>()
-        allBills.forEach { bill ->
-            val key = dailyFormat.format(Date(bill.timestampMillis))
-            map[key] = (map[key] ?: 0.0) + bill.amount
+        var totalDailyCost = 0.0
+        items.forEach { item ->
+            val endDate = if (item.isSold) item.soldDateMillis ?: nowMillis else nowMillis
+            val diffMillis = max(endDate - item.purchaseDateMillis, 0)
+            var daysPassed = TimeUnit.MILLISECONDS.toDays(diffMillis)
+            if (daysPassed < 1L) daysPassed = 1L
+            val netCost = if (item.isSold) max(item.price - item.residualValue, 0.0) else item.price
+            totalDailyCost += (netCost / daysPassed)
         }
-        map
-    }
 
-    val monthlySums = remember(allBills) {
-        val map = mutableMapOf<String, Double>()
+        // 账单统计：按区间总和映射表
+        val dailySums = mutableMapOf<String, Double>()
+        val monthlySums = mutableMapOf<String, Double>()
+        val yearlySums = mutableMapOf<String, Double>()
+        
         allBills.forEach { bill ->
-            val key = monthFormat.format(Date(bill.timestampMillis))
-            map[key] = (map[key] ?: 0.0) + bill.amount
+            val date = Date(bill.timestampMillis)
+            dailySums[dailyFormat.format(date)] = (dailySums[dailyFormat.format(date)] ?: 0.0) + bill.amount
+            monthlySums[monthFormat.format(date)] = (monthlySums[monthFormat.format(date)] ?: 0.0) + bill.amount
+            yearlySums[yearFormat.format(date)] = (yearlySums[yearFormat.format(date)] ?: 0.0) + bill.amount
         }
-        map
-    }
 
-    val yearlySums = remember(allBills) {
-        val map = mutableMapOf<String, Double>()
-        allBills.forEach { bill ->
-            val key = yearFormat.format(Date(bill.timestampMillis))
-            map[key] = (map[key] ?: 0.0) + bill.amount
-        }
-        map
-    }
-
-    val recentDays = remember(dailySums) {
-        val list = mutableListOf<Pair<String, Double>>()
+        val recentDays = mutableListOf<Pair<String, Double>>()
         val todayKey = dailyFormat.format(nowMillis)
-        list.add(Pair("今日新增记账", dailySums[todayKey] ?: 0.0))
-
+        recentDays.add(Pair("今日新增记账", dailySums[todayKey] ?: 0.0))
         dailySums.keys.filter { it != todayKey }.sortedDescending().forEach { key ->
             val date = dailyFormat.parse(key)
-            val label = date?.let { SimpleDateFormat("MM月dd日", Locale.getDefault()).format(it) } ?: key
-            list.add(Pair(label, dailySums[key] ?: 0.0))
+            val label = date?.let { dayLabelFormat.format(it) } ?: key
+            recentDays.add(Pair(label, dailySums[key] ?: 0.0))
         }
-        list
-    }
 
-    val recentMonths = remember(monthlySums) {
-        val list = mutableListOf<Pair<String, Double>>()
+        val recentMonths = mutableListOf<Pair<String, Double>>()
         val thisMonthKey = monthFormat.format(nowMillis)
-        list.add(Pair("本月累计支出", monthlySums[thisMonthKey] ?: 0.0))
-
+        recentMonths.add(Pair("本月累计支出", monthlySums[thisMonthKey] ?: 0.0))
         monthlySums.keys.filter { it != thisMonthKey }.sortedDescending().forEach { key ->
             val date = monthFormat.parse(key)
-            val label = date?.let { SimpleDateFormat("yyyy年 MM月", Locale.getDefault()).format(it) } ?: key
-            list.add(Pair(label, monthlySums[key] ?: 0.0))
+            val label = date?.let { monthLabelFormat.format(it) } ?: key
+            recentMonths.add(Pair(label, monthlySums[key] ?: 0.0))
         }
-        list
-    }
 
-    val recentYears = remember(yearlySums) {
-        val list = mutableListOf<Pair<String, Double>>()
+        val recentYears = mutableListOf<Pair<String, Double>>()
         val thisYearKey = yearFormat.format(nowMillis)
-        list.add(Pair("本年度总花销", yearlySums[thisYearKey] ?: 0.0))
-
+        recentYears.add(Pair("本年度总花销", yearlySums[thisYearKey] ?: 0.0))
         yearlySums.keys.filter { it != thisYearKey }.sortedDescending().forEach { key ->
-            list.add(Pair("${key}年", yearlySums[key] ?: 0.0))
+            recentYears.add(Pair("${key}年", yearlySums[key] ?: 0.0))
         }
-        list
+
+        Triple(
+            Triple(totalSpent, totalRecovered, netSpend),
+            Triple(activeItems, soldItems, totalDailyCost),
+            Triple(recentDays, recentMonths, recentYears)
+        )
     }
+
+    val (totals, counts, history) = statistics
+    val (totalSpent, totalRecovered, netSpend) = totals
+    val (activeItems, soldItems, totalDailyCost) = counts
+    val (recentDays, recentMonths, recentYears) = history
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -822,9 +813,8 @@ fun OverviewRow(label: String, value: String, valueColor: Color, fontSize: andro
 
 @Composable
 fun ItemCard(item: Item, onDelete: () -> Unit, onEdit: () -> Unit, onSell: () -> Unit) {
-    val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-    val dateStr = dateFormat.format(Date(item.purchaseDateMillis))
-    val soldDateStr = item.soldDateMillis?.let { dateFormat.format(Date(it)) }
+    val dateStr = dateFormatYMD.format(Date(item.purchaseDateMillis))
+    val soldDateStr = item.soldDateMillis?.let { dateFormatYMD.format(Date(it)) }
     
     val now = System.currentTimeMillis()
     val endDate = if (item.isSold) item.soldDateMillis ?: now else now
@@ -944,8 +934,7 @@ fun AddItemDialog(onDismiss: () -> Unit, onAdd: (String, Double, Long, Double) -
     var name by remember { mutableStateOf("") }
     var priceStr by remember { mutableStateOf("") }
     var residualStr by remember { mutableStateOf("") }
-    val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-    var dateStr by remember { mutableStateOf(dateFormat.format(Date())) }
+    var dateStr by remember { mutableStateOf(dateFormatYMD.format(Date())) }
     var isError by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -975,8 +964,7 @@ fun AddItemDialog(onDismiss: () -> Unit, onAdd: (String, Double, Long, Double) -
 fun EditItemDialog(item: Item, onDismiss: () -> Unit, onEdit: (String, Double, Long) -> Unit) {
     var name by remember { mutableStateOf(item.name) }
     var priceStr by remember { mutableStateOf(if (item.price > 0) item.price.toString() else "") }
-    val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-    var dateStr by remember { mutableStateOf(dateFormat.format(Date(item.purchaseDateMillis))) }
+    var dateStr by remember { mutableStateOf(dateFormatYMD.format(Date(item.purchaseDateMillis))) }
     var isError by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -1005,8 +993,7 @@ fun EditItemDialog(item: Item, onDismiss: () -> Unit, onEdit: (String, Double, L
 @Composable
 fun SellItemDialog(item: Item, onDismiss: () -> Unit, onSell: (Double, Long) -> Unit) {
     var priceStr by remember { mutableStateOf(if(item.residualValue > 0) item.residualValue.toString() else "") }
-    val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-    var dateStr by remember { mutableStateOf(dateFormat.format(Date())) }
+    var dateStr by remember { mutableStateOf(dateFormatYMD.format(Date())) }
     var isError by remember { mutableStateOf(false) }
 
     AlertDialog(
