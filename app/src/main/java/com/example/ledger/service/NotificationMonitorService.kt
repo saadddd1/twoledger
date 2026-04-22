@@ -1,9 +1,13 @@
 package com.example.ledger.service
 
 import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import com.example.ledger.R
 import com.example.ledger.data.AppDatabase
 import com.example.ledger.data.AutoBill
 import kotlinx.coroutines.CoroutineScope
@@ -11,11 +15,61 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class NotificationMonitorService : NotificationListenerService() {
-    
     private val scope = CoroutineScope(Dispatchers.IO)
-    // 用于防抖
-    private var lastAmount = 0.0
-    private var lastTime = 0L
+    private lateinit var db: AppDatabase
+
+    companion object {
+        private const val CHANNEL_ID = "ledger_monitor_service"
+        private const val FOREGROUND_ID = 1001
+
+        // 2026年最新支付关键词
+        private val SUCCESS_KEYWORDS = listOf(
+            "微信支付付款", "已支付", "支付成功", "完成付款", "付款金额",
+            "付款成功", "交易成功", "消费成功", "转账成功", "扫码付款",
+            "支付完成", "付款完成", "支付款项", "支出通知", "交易人民币"
+        )
+
+        // 2026年最新金额匹配规则
+        private val PATTERNS = listOf(
+            Regex("""(?:¥|￥|人民币|-|支付成功|付款成功)(\d+(?:\.\d{1,2})?)"""),
+            Regex("""(?:支出|消费|支付|交易|付款)(\d+(?:\.\d{1,2})?)[元]?"""),
+            Regex("""(?:金额|付款|收款方)(?:[：:]?)(\d+(?:\.\d{1,2})?)"""),
+            Regex("""(\d+\.\d{2})元""")
+        )
+    }
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        db = AppDatabase.getDatabase(applicationContext)
+        startForegroundService()
+        Log.d("NotificationMonitor", "通知监听服务已连接")
+    }
+
+    private fun startForegroundService() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "自动记账服务",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "自动记账后台运行服务"
+                enableVibration(false)
+                setSound(null, null)
+            }
+
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+        }
+
+        val notification = Notification.Builder(this, CHANNEL_ID)
+            .setContentTitle("账本自动记账")
+            .setContentText("正在后台监听支付通知")
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setOngoing(true)
+            .build()
+
+        startForeground(FOREGROUND_ID, notification)
+    }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)
@@ -29,125 +83,67 @@ class NotificationMonitorService : NotificationListenerService() {
         val text = extras.getString(Notification.EXTRA_TEXT) ?: ""
         val subText = extras.getString(Notification.EXTRA_SUB_TEXT) ?: ""
         val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString() ?: ""
-        val titleBig = extras.getString(Notification.EXTRA_TITLE_BIG) ?: ""
-        
-        // Combine all possible text fields to avoid missing data, removing whitespaces for easier regex matching
-        val combinedContent = listOf(title, text, subText, bigText, titleBig)
-            .filter { it.isNotBlank() }
-            .joinToString(" || ")
-        
-        val normalizedString = combinedContent.replace(" ", "").replace("\n", "")
 
-        // 我们关注主流支付软件及短消息
+        val combinedContent = listOf(title, text, subText, bigText)
+            .filter { it.isNotBlank() }
+            .joinToString(" ")
+
+        // 扩展支持的应用列表
         val isPaymentApp = when (packageName) {
-            "com.tencent.mm" -> true // 微信
-            "com.eg.android.AlipayGphone" -> true // 支付宝
-            "com.unionpay" -> true // 云闪付
-            "com.android.mms", "com.google.android.apps.messaging", "com.android.messaging" -> true // 短信
-            else -> packageName.contains("bank", ignoreCase = true) || packageName.contains("icbc", ignoreCase = true) || packageName.contains("cmb", ignoreCase = true) || packageName.contains("boc", ignoreCase = true) || packageName.contains("abchina", ignoreCase = true) || packageName.contains("ccb", ignoreCase = true)
+            "com.tencent.mm",
+            "com.eg.android.AlipayGphone",
+            "com.unionpay",
+            "com.jingdong.app.mall",
+            "com.sankuai.meituan",
+            "com.taobao.taobao",
+            "com.xunmeng.pinduoduo",
+            "com.ss.android.ugc.aweme",
+            "com.android.mms",
+            "com.google.android.apps.messaging",
+            "com.android.messaging" -> true
+            else -> packageName.contains("bank", ignoreCase = true)
         }
 
         if (!isPaymentApp) return
 
-        // 关键字过滤，确保这是一笔支出通知
-        val successKeywords = listOf("支付款项", "支出", "交易成功", "支付成功", "付款成功", "消费", "转账", "成功付款", "完成付款", "付款金额", "交易人民币", "扫码付款")
-        if (!successKeywords.any { normalizedString.contains(it) } && !normalizedString.contains("凭证")) return
+        if (SUCCESS_KEYWORDS.none { combinedContent.contains(it, ignoreCase = true) }) return
 
         scope.launch {
             try {
-                // 更强大的提取金额逻辑 (兼容10 / 10.0 / 10.00，兼容负号，兼容人民币/¥/￥)
+                // 顺序匹配所有规则
                 var amount: Double? = null
-                
-                // 1. 寻找 ¥20.00 / ￥20.00 / -20.00
-                val symbolRegex = Regex("""(?:¥|￥|人民币|-)(\d+(?:\.\d{1,2})?)""")
-                val symbolMatch = symbolRegex.find(normalizedString)
-                if (symbolMatch != null) {
-                    amount = symbolMatch.groupValues[1].toDoubleOrNull()
-                }
-
-                // 2. 寻找 支出20元 / 消费20.00元 / 交易20元 (针对短信或银行)
-                if (amount == null) {
-                    val yuanRegex = Regex("""(?:支出|消费|支付|交易|交易人民币|付款)(\d+(?:\.\d{1,2})?)[元]?""")
-                    val yuanMatch = yuanRegex.find(normalizedString)
-                    if (yuanMatch != null) {
-                        amount = yuanMatch.groupValues[1].toDoubleOrNull()
-                    }
-                }
-                
-                // 3. Fallback: 任何包含 "金额"、"付款" 的位置后面紧跟的数字
-                if (amount == null) {
-                    val amountTextRegex = Regex("""(?:金额|付款|转账给.*?)(?:[：:]?)(\d+(?:\.\d{1,2})?)""")
-                    val amountTextMatch = amountTextRegex.find(normalizedString)
-                    if (amountTextMatch != null) {
-                        amount = amountTextMatch.groupValues[1].toDoubleOrNull()
-                    }
-                }
-
-                // 4. 终极Fallback：直接找 XX.XX元
-                if (amount == null) {
-                    val rawYuanRegex = Regex("""(\d+\.\d{2})元""")
-                    val rawYuanMatch = rawYuanRegex.find(normalizedString)
-                    if (rawYuanMatch != null) {
-                        amount = rawYuanMatch.groupValues[1].toDoubleOrNull()
+                for (pattern in PATTERNS) {
+                    val match = pattern.find(combinedContent)
+                    if (match != null) {
+                        amount = match.groupValues[1].toDoubleOrNull()
+                        if (amount != null && amount > 0) break
                     }
                 }
 
                 val finalAmount = amount ?: return@launch
-
-                // 防抖逻辑：防止同一笔账单因为状态更新导致多条通知
                 val now = sbn.postTime
-                if (finalAmount == lastAmount && (now - lastTime < 5000)) {
+
+                // 全局去重
+                if (!BillDeduplicator.shouldRecordBill(finalAmount, packageName, now)) {
                     return@launch
                 }
-                lastAmount = finalAmount
-                lastTime = now
 
                 val appSource = when (packageName) {
                     "com.tencent.mm" -> "Wechat (微信)"
                     "com.eg.android.AlipayGphone" -> "Alipay (支付宝)"
                     "com.unionpay" -> "UnionPay (云闪付)"
+                    "com.jingdong.app.mall" -> "京东"
+                    "com.sankuai.meituan" -> "美团"
+                    "com.taobao.taobao" -> "淘宝"
+                    "com.xunmeng.pinduoduo" -> "拼多多"
+                    "com.ss.android.ugc.aweme" -> "抖音"
                     "com.android.mms", "com.google.android.apps.messaging", "com.android.messaging" -> "SMS (短信)"
                     else -> "Bank App (银行)"
                 }
 
-                // 启发式提取商户名
-                var merchantName = "未命名账单"
-                
-                if (packageName == "com.tencent.mm") {
-                   merchantName = "微信支付" // 默认值
-                   // 匹配 "支付款项: [商户名] 消费..." 或者 "收款方: [商户名]"
-                   val wxMatch1 = Regex("""收款方(?:：|:)?(.*?)(?:\|\||¥|￥|\d)""").find(combinedContent)
-                   val wxMatch2 = Regex("""付款给(.*?)(?:\|\||¥|￥|\d)""").find(combinedContent)
-                   val wxMatch3 = Regex("""支付给(.*?)(?:\|\||¥|￥|\d)""").find(combinedContent)
-                   
-                   merchantName = wxMatch1?.groupValues?.get(1)?.trim() 
-                         ?: wxMatch2?.groupValues?.get(1)?.trim() 
-                         ?: wxMatch3?.groupValues?.get(1)?.trim() 
-                         ?: "微信支付"
-                         
-                } else if (packageName == "com.eg.android.AlipayGphone") {
-                   val aliMatch = Regex("""在(.*?)成功支付""").find(combinedContent)
-                   if (aliMatch != null) {
-                       merchantName = aliMatch.groupValues[1].trim()
-                   } else {
-                       val aliTransferMatch = Regex("""向(.*?)转账""").find(combinedContent)
-                       if (aliTransferMatch != null) merchantName = "转账: " + aliTransferMatch.groupValues[1].trim()
-                   }
-                }
-                
-                merchantName = merchantName.replace("交易成功", "").replace("支付成功", "").trim()
+                // 提取商户名
+                val merchantName = extractMerchantName(combinedContent, packageName, title)
 
-                // 兜底逻辑：如果标题有内容且不是纯通用词，就用标题
-                if (merchantName == "未命名账单" || merchantName == "微信支付") {
-                   if (title.isNotBlank() && title != "微信支付" && title != "支付结果通知" && title != "服务通知" && title != "交易提醒") {
-                       merchantName = title.trim()
-                   } else if (text.isNotBlank()) {
-                       // 进行长文本剥离
-                       merchantName = text.replace(Regex("[0-9]|\\.|元|￥|¥|支付成功|成功支付|支出|消费|转账给|付款给|付款|您尾号|账户|人民币|交易|完成通知"), "").chunked(12).firstOrNull() ?: "未命名账单"
-                   }
-                }
-
-                val db = AppDatabase.getDatabase(applicationContext)
                 db.autoBillDao().insertAutoBill(
                     AutoBill(
                         appSource = appSource,
@@ -159,15 +155,35 @@ class NotificationMonitorService : NotificationListenerService() {
                     )
                 )
 
-                Log.d("NotificationMonitor", "Saved Bill via Notification: $appSource - $finalAmount")
+                Log.d("NotificationMonitor", "捕获账单: $appSource - $finalAmount - $merchantName")
 
             } catch (e: Exception) {
-                Log.e("NotificationMonitor", "Error parsing notification", e)
+                Log.e("NotificationMonitor", "解析通知失败", e)
             }
         }
     }
 
-    override fun onNotificationRemoved(sbn: StatusBarNotification?) {
-        super.onNotificationRemoved(sbn)
+    private fun extractMerchantName(content: String, packageName: String, title: String): String {
+        return when (packageName) {
+            "com.tencent.mm" -> {
+                Regex("""收款方(?:：|:)?(.*?)(?:\s|$)""").find(content)?.groupValues?.get(1)?.trim()
+                    ?: Regex("""付款给(.*?)(?:\s|$)""").find(content)?.groupValues?.get(1)?.trim()
+                    ?: if (title.isNotBlank() && title !in listOf("微信支付", "支付结果通知", "服务通知")) title.trim() else "微信支付"
+            }
+            "com.eg.android.AlipayGphone" -> {
+                Regex("""收款方(?:：|:)?(.*?)(?:\s|$)""").find(content)?.groupValues?.get(1)?.trim()
+                    ?: Regex("""在(.*?)支付成功""").find(content)?.groupValues?.get(1)?.trim()
+                    ?: "支付宝支付"
+            }
+            else -> title.takeIf { it.isNotBlank() } ?: "未命名账单"
+        }.replace("交易成功", "").replace("支付成功", "").trim()
     }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        stopForeground(STOP_FOREGROUND_REMOVE)
+    }
+
+    override fun onNotificationRemoved(sbn: StatusBarNotification?) {}
 }
+

@@ -76,6 +76,14 @@ fun isNotificationListenerEnabled(context: Context): Boolean {
     return enabledListeners.contains(packageName)
 }
 
+fun isAccessibilityServiceEnabled(context: Context): Boolean {
+    val enabledServices = Settings.Secure.getString(
+        context.contentResolver,
+        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    ) ?: return false
+    return enabledServices.contains(context.packageName)
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun MainScreen(database: AppDatabase) {
