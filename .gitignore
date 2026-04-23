@@ -7,3 +7,6 @@ coverage/
 .env*
 !.env.example
 .gradle/
+app-planning/
+Index Txet/
+.kilo/
