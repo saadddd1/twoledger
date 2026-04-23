@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -86,15 +87,10 @@ class AccessibilityMonitorService : AccessibilityService() {
             .build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(FOREGROUND_ID, notification, FOREGROUND_SERVICE_SPECIAL_USE)
+            startForeground(FOREGROUND_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
             startForeground(FOREGROUND_ID, notification)
         }
-    }
-
-    override fun onInterrupt() {
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        scope.cancel()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -202,5 +198,8 @@ class AccessibilityMonitorService : AccessibilityService() {
         }
     }
 
-    override fun onInterrupt() {}
+    override fun onInterrupt() {
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        scope.cancel()
+    }
 }
