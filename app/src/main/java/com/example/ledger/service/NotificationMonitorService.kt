@@ -3,6 +3,7 @@ package com.example.ledger.service
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -73,7 +74,7 @@ class NotificationMonitorService : NotificationListenerService() {
             .build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(FOREGROUND_ID, notification, FOREGROUND_SERVICE_DATA_SYNC)
+            startForeground(FOREGROUND_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
             startForeground(FOREGROUND_ID, notification)
         }
